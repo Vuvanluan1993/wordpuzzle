@@ -2,92 +2,201 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <title>Word Puzzle Solver</title>
+  <title>Word Puzzle Finder</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    textarea, input { width: 100%; margin-top: 10px; font-size: 16px; }
-    button { padding: 10px 20px; margin-top: 10px; font-size: 16px; }
-    #result { margin-top: 20px; font-weight: bold; }
+    body { font-family: Arial; padding: 20px; text-align: center; }
+    textarea, input { width: 80%; margin: 5px auto; font-size: 16px; display: block; }
+    table {
+      margin: 10px auto;
+      border-collapse: collapse;
+    }
+    td {
+      padding: 2px;
+      text-align: center;
+      width: 28px;
+      height: 28px;
+      font-size: 26px;
+      font-weight: bold;
+      border: none;
+    }
+    .highlight-line {
+      text-decoration: underline;
+      color: red;
+    }
+    button { font-size: 16px; padding: 6px 12px; margin: 5px; }
+
+    #loadingIndicator {
+      font-size: 24px;
+      display: none;
+      animation: sand 1s infinite linear;
+      margin-top: -10px;
+    }
+
+    @keyframes sand {
+      0% { opacity: 1; transform: rotate(0deg); }
+      50% { opacity: 0.6; transform: rotate(180deg); }
+      100% { opacity: 1; transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
-  <h2>Word Puzzle - Tìm từ trong mảng chữ cái</h2>
+  <h2>Word Puzzle Finder</h2>
 
-  <label>Nhập mảng chữ cái (mỗi dòng là 1 hàng, cách nhau bằng khoảng trắng):</label>
-  <textarea id="letterGrid" rows="6" placeholder="A B C D E&#10;F G H I J&#10;K L M N O"></textarea>
+  <textarea id="gridInput" rows="3" placeholder="Vd: A B C D; E F G H; I J K L;"></textarea>
+  <button onclick="parseGrid()">Tạo bảng</button>
 
-  <label>Nhập từ cần tìm:</label>
-  <input type="text" id="wordInput" placeholder="Nhập từ...">
+  <div id="gridDisplay"></div>
 
-  <button onclick="findWord()">Tìm từ</button>
+  <input type="text" id="searchWord" placeholder="Nhập từ (vd: L**** hoặc *****)">
+  <button onclick="searchWord()">Tìm kiếm</button>
+  <div id="loadingIndicator">⌛</div>
 
-  <div id="result"></div>
+  <div id="output"></div>
+  <button onclick="resetPage()">Reset</button>
 
   <script>
-    function parseGrid(input) {
-      return input.trim().split("\n").map(row =>
-        row.trim().split(/\s+/)
-      );
+    let grid = [];
+    let cellElements = [];
+
+    function parseGrid() {
+      const input = document.getElementById("gridInput").value.trim();
+      const rows = input.split(';').map(r => r.trim().split(/\s+/));
+      const colCount = rows[0].length;
+
+      if (rows.some(row => row.length !== colCount)) {
+        alert("Lỗi: Các hàng không có cùng số cột!");
+        return;
+      }
+
+      grid = rows;
+      cellElements = [];
+
+      let table = '<table>';
+      for (let r = 0; r < grid.length; r++) {
+        table += '<tr>';
+        cellElements[r] = [];
+        for (let c = 0; c < grid[r].length; c++) {
+          const id = `cell-${r}-${c}`;
+          table += `<td><span id="${id}">${grid[r][c]}</span></td>`;
+          cellElements[r][c] = id;
+        }
+        table += '</tr>';
+      }
+      table += '</table>';
+
+      document.getElementById("gridDisplay").innerHTML = table;
+      document.getElementById("gridInput").style.display = "none";
+      event.target.style.display = "none";
+      document.getElementById("searchWord").focus();
     }
 
-    function findWordInGrid(grid, word) {
+    function resetPage() {
+      location.reload();
+    }
+
+    function clearHighlights() {
+      for (let r = 0; r < cellElements.length; r++) {
+        for (let c = 0; c < cellElements[r].length; c++) {
+          const span = document.getElementById(cellElements[r][c]);
+          if (span) {
+            span.classList.remove("highlight-line");
+          }
+        }
+      }
+    }
+
+    async function searchWord(wordPattern = null) {
+      if (grid.length === 0) {
+        alert("Bạn cần nhập bảng chữ cái trước!");
+        return;
+      }
+
+      const indicator = document.getElementById("loadingIndicator");
+      indicator.style.display = "inline-block";
+
+      clearHighlights();
+
+      const pattern = wordPattern || document.getElementById("searchWord").value.trim().toLowerCase();
+      if (!pattern || !/^([a-zA-Z\*]+)$/.test(pattern)) {
+        indicator.style.display = "none";
+        return;
+      }
+
       const directions = [
-        { dr: 0, dc: 1, name: "→ phải" },
-        { dr: 0, dc: -1, name: "← trái" },
-        { dr: 1, dc: 0, name: "↓ xuống" },
-        { dr: -1, dc: 0, name: "↑ lên" },
-        { dr: 1, dc: 1, name: "↘ chéo phải xuống" },
-        { dr: 1, dc: -1, name: "↙ chéo trái xuống" },
-        { dr: -1, dc: -1, name: "↖ chéo trái lên" },
-        { dr: -1, dc: 1, name: "↗ chéo phải lên" }
+        [0, 1], [1, 0], [0, -1], [-1, 0],
+        [1, 1], [-1, -1], [1, -1], [-1, 1]
       ];
 
-      const rows = grid.length;
-      const cols = grid[0].length;
-      const wordLength = word.length;
+      const rows = grid.length, cols = grid[0].length;
+      const patternLength = pattern.length;
+      let foundWords = [];
 
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          for (let dir of directions) {
-            let found = true;
-            for (let k = 0; k < wordLength; k++) {
-              const nr = r + dir.dr * k;
-              const nc = c + dir.dc * k;
-              if (
-                nr < 0 || nr >= rows || nc < 0 || nc >= cols ||
-                grid[nr][nc].toUpperCase() !== word[k].toUpperCase()
-              ) {
-                found = false;
-                break;
+          for (let [dr, dc] of directions) {
+            let word = "";
+            let positions = [];
+            let row = r, col = c;
+
+            for (let i = 0; i < patternLength; i++) {
+              if (row < 0 || row >= rows || col < 0 || col >= cols) break;
+              word += grid[row][col];
+              positions.push([row, col]);
+              row += dr;
+              col += dc;
+            }
+
+            if (word.length === patternLength) {
+              let match = true;
+              for (let i = 0; i < patternLength; i++) {
+                if (pattern[i] !== '*' && pattern[i].toLowerCase() !== word[i].toLowerCase()) {
+                  match = false;
+                  break;
+                }
+              }
+
+              if (match) {
+                const isValid = await checkDictionary(word.toLowerCase());
+                if (isValid) {
+                  foundWords.push({ word, positions });
+                }
               }
             }
-            if (found) return { row: r + 1, col: c + 1, direction: dir.name }; // 1-based
           }
         }
       }
 
-      return null;
-    }
-
-    function findWord() {
-      const gridText = document.getElementById("letterGrid").value;
-      const word = document.getElementById("wordInput").value.trim();
-      const resultDiv = document.getElementById("result");
-
-      if (!gridText || !word) {
-        resultDiv.textContent = "Vui lòng nhập đủ mảng chữ cái và từ cần tìm.";
-        return;
+      for (const item of foundWords) {
+        const { positions } = item;
+        for (let i = 0; i < positions.length; i++) {
+          const [rr, cc] = positions[i];
+          const span = document.getElementById(cellElements[rr][cc]);
+          if (span) span.classList.add("highlight-line");
+        }
       }
 
-      const grid = parseGrid(gridText);
-      const result = findWordInGrid(grid, word);
+      const output = document.getElementById("output");
+      output.innerText = foundWords.length === 0
+        ? "Không tìm thấy từ phù hợp!"
+        : `Tìm thấy ${foundWords.length} từ phù hợp!`;
 
-      if (result) {
-        resultDiv.textContent = `Tìm thấy từ "${word}" tại hàng ${result.row}, cột ${result.col}, hướng ${result.direction}.`;
-      } else {
-        resultDiv.textContent = `Không tìm thấy từ "${word}" trong mảng.`;
+      indicator.style.display = "none";
+    }
+
+    async function checkDictionary(word) {
+      try {
+        const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+        return res.ok;
+      } catch {
+        return false;
       }
     }
+
+    document.getElementById("searchWord").addEventListener("keypress", function(e) {
+      if (e.key === "Enter") {
+        searchWord();
+      }
+    });
   </script>
 </body>
 </html>
