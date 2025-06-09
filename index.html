@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Word Puzzle Solver</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    textarea, input { width: 100%; margin-top: 10px; font-size: 16px; }
+    button { padding: 10px 20px; margin-top: 10px; font-size: 16px; }
+    #result { margin-top: 20px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h2>Word Puzzle - Tìm từ trong mảng chữ cái</h2>
+
+  <label>Nhập mảng chữ cái (mỗi dòng là 1 hàng, cách nhau bằng khoảng trắng):</label>
+  <textarea id="letterGrid" rows="6" placeholder="A B C D E&#10;F G H I J&#10;K L M N O"></textarea>
+
+  <label>Nhập từ cần tìm:</label>
+  <input type="text" id="wordInput" placeholder="Nhập từ...">
+
+  <button onclick="findWord()">Tìm từ</button>
+
+  <div id="result"></div>
+
+  <script>
+    function parseGrid(input) {
+      return input.trim().split("\n").map(row =>
+        row.trim().split(/\s+/)
+      );
+    }
+
+    function findWordInGrid(grid, word) {
+      const directions = [
+        { dr: 0, dc: 1, name: "→ phải" },
+        { dr: 0, dc: -1, name: "← trái" },
+        { dr: 1, dc: 0, name: "↓ xuống" },
+        { dr: -1, dc: 0, name: "↑ lên" },
+        { dr: 1, dc: 1, name: "↘ chéo phải xuống" },
+        { dr: 1, dc: -1, name: "↙ chéo trái xuống" },
+        { dr: -1, dc: -1, name: "↖ chéo trái lên" },
+        { dr: -1, dc: 1, name: "↗ chéo phải lên" }
+      ];
+
+      const rows = grid.length;
+      const cols = grid[0].length;
+      const wordLength = word.length;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          for (let dir of directions) {
+            let found = true;
+            for (let k = 0; k < wordLength; k++) {
+              const nr = r + dir.dr * k;
+              const nc = c + dir.dc * k;
+              if (
+                nr < 0 || nr >= rows || nc < 0 || nc >= cols ||
+                grid[nr][nc].toUpperCase() !== word[k].toUpperCase()
+              ) {
+                found = false;
+                break;
+              }
+            }
+            if (found) return { row: r + 1, col: c + 1, direction: dir.name }; // 1-based
+          }
+        }
+      }
+
+      return null;
+    }
+
+    function findWord() {
+      const gridText = document.getElementById("letterGrid").value;
+      const word = document.getElementById("wordInput").value.trim();
+      const resultDiv = document.getElementById("result");
+
+      if (!gridText || !word) {
+        resultDiv.textContent = "Vui lòng nhập đủ mảng chữ cái và từ cần tìm.";
+        return;
+      }
+
+      const grid = parseGrid(gridText);
+      const result = findWordInGrid(grid, word);
+
+      if (result) {
+        resultDiv.textContent = `Tìm thấy từ "${word}" tại hàng ${result.row}, cột ${result.col}, hướng ${result.direction}.`;
+      } else {
+        resultDiv.textContent = `Không tìm thấy từ "${word}" trong mảng.`;
+      }
+    }
+  </script>
+</body>
+</html>
